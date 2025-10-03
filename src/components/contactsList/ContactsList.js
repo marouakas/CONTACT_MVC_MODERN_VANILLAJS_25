@@ -1,84 +1,130 @@
 import DB from "../../DB";
-import Contact from '../contact/Contact';
-import ContactsListTemplate from "./template";
+import Contact from "../contact/Contact";
+import ContactsListTemplate from "./template.js";
 
 export default class ContactsList {
   constructor(data) {
     this.div = document.querySelector(data.elt);
     DB.setApiURL(data.apiURL);
     this.contacts = [];
-    this.contactsfun();
-  }
 
-  async contactsfun() {
-    const contacts = await DB.find();
-    this.contacts = contacts.map((contact) => new Contact(contact));
-    this.render();
-  }
-
-  render() {
+    // Injecter le HTML dans le div
     this.div.innerHTML = ContactsListTemplate(this);
-    this.attachEvents();
+
+    // Sélecteurs des éléments après injection
+    this.tbody = this.div.querySelector("table.contacts-table tbody");
+    this.countSpan = this.div.querySelector("span.font-bold");
+    this.inputFirstname = this.div.querySelector(".input-add-firstname");
+    this.inputLastname = this.div.querySelector(".input-add-lastname");
+    this.inputEmail = this.div.querySelector(".input-add-email");
+    this.btnAdd = this.div.querySelector(".btn-add");
+
+    // Charger contacts depuis DB
+    this.loadContacts();
+
+    // Events
+    this.btnAdd.addEventListener("click", () => this.addContact());
   }
 
-  attachEvents() {
-    const addBtn = this.div.querySelector(".btn-add");
+  async loadContacts() {
+    const contacts = await DB.find();
+    this.contacts = contacts.map(c => new Contact(c));
+    this.tbody.innerHTML = ""; // vider le tableau avant d'ajouter
+    this.contacts.forEach(contact => this.addContactInDOM(contact));
+    this.renderContactsCount();
+  }
 
-    addBtn.onclick = async () => {
-      const firstname = this.div.querySelector(".input-add-firstname").value;
-      const lastname = this.div.querySelector(".input-add-lastname").value;
-      const email = this.div.querySelector(".input-add-email").value;
-      
-      if (firstname && lastname && email) {
-        const newContact = await DB.create({ firstname, lastname, email });
-        this.contacts.push(new Contact(newContact));
-        this.render();
-        this.div.querySelector(".input-add-firstname").value = "";
-        this.div.querySelector(".input-add-lastname").value = "";
-        this.div.querySelector(".input-add-email").value = "";
-      }
-    };
+  getContactsCount() {
+    return this.contacts.length;
+  }
 
-    this.div.querySelectorAll(".btn-delete").forEach((btn) => {
-      btn.onclick = async () => {
-        const row = btn.closest(".contact-row");
-        const id = row.dataset.id;
-        await DB.delete(id);
-        this.contacts = this.contacts.filter((c) => c.id !== id);
-        this.render();
-      };
-    });
+  renderContactsCount() {
+    this.countSpan.textContent = this.getContactsCount();
+  }
 
-    this.div.querySelectorAll(".btn-edit").forEach((btn) => {
-      btn.onclick = () => {
-        const row = btn.closest(".contact-row");
-        const id = row.dataset.id;
-        const contact = this.contacts.find((c) => c.id === id);
-        if (contact) {
-          contact.isEditing = true;
-        }
-        this.render();
-      };
-    });
+  async addContact() {
+    const firstname = this.inputFirstname.value.trim();
+    const lastname = this.inputLastname.value.trim();
+    const email = this.inputEmail.value.trim();
 
-    this.div.querySelectorAll(".btn-check").forEach((btn) => {
-      btn.onclick = async () => {
-        const row = btn.closest(".contact-row");
-        const id = row.dataset.id;
-        const firstname = row.querySelector(".input-firstname").value;
-        const lastname = row.querySelector(".input-lastname").value;
-        const email = row.querySelector(".input-email").value;
-        
-        await DB.update(id, { firstname, lastname, email });
-        const contact = this.contacts.find((c) => c.id === id);
-        if (contact) {
-          contact.firstname = firstname;
-          contact.lastname = lastname;
-          contact.email = email;
-          contact.isEditing = false;
-        }
-        this.render();
-      };
-    });
+    if (!firstname || !lastname || !email) return;
+
+    const newContactData = await DB.create({ firstname, lastname, email });
+    const newContact = new Contact(newContactData);
+
+    this.contacts.push(newContact);
+    this.addContactInDOM(newContact);
+    this.renderContactsCount();
+
+    this.inputFirstname.value = "";
+    this.inputLastname.value = "";
+    this.inputEmail.value = "";
+  }
+
+  addContactInDOM(contact) {
+    const tr = document.createElement("tr");
+    tr.classList.add("contact-row");
+    tr.dataset.id = contact.id;
+
+    tr.innerHTML = `
+      <td class="p-4">
+        <span class="isEditing-hidden">${contact.firstname}</span>
+        <input type="text" class="input-firstname isEditing-visible w-full" value="${contact.firstname}">
+      </td>
+      <td class="p-4">
+        <span class="isEditing-hidden">${contact.lastname}</span>
+        <input type="text" class="input-lastname isEditing-visible w-full" value="${contact.lastname}">
+      </td>
+      <td class="p-4">
+        <span class="isEditing-hidden">${contact.email}</span>
+        <input type="text" class="input-email isEditing-visible w-full" value="${contact.email}">
+      </td>
+      <td class="p-4">
+        <div class="flex justify-end space-x-2">
+          <button class="btn-check isEditing-visible bg-green-400 text-white px-4 py-2 rounded-md">
+            <i class="fa-solid fa-check"></i>
+          </button>
+          <button class="btn-edit isEditing-hidden bg-yellow-400 text-white px-4 py-2 rounded-md">
+            <i class="fa-solid fa-pen-to-square"></i>
+          </button>
+          <button class="btn-delete isEditing-hidden bg-red-500 text-white px-4 py-2 rounded-md">
+            <i class="fa-solid fa-trash"></i>
+          </button>
+        </div>
+      </td>
+    `;
+
+    // Events
+    tr.querySelector(".btn-edit").addEventListener("click", () => tr.classList.add("isEditing"));
+    tr.querySelector(".btn-check").addEventListener("click", () => this.validateEdit(tr, contact));
+    tr.querySelector(".btn-delete").addEventListener("click", () => this.deleteContact(tr, contact));
+
+    this.tbody.appendChild(tr);
+  }
+
+  async validateEdit(tr, contact) {
+    const firstname = tr.querySelector(".input-firstname").value.trim();
+    const lastname = tr.querySelector(".input-lastname").value.trim();
+    const email = tr.querySelector(".input-email").value.trim();
+
+    await DB.update(contact.id, { firstname, lastname, email });
+
+    contact.firstname = firstname;
+    contact.lastname = lastname;
+    contact.email = email;
+
+    const spans = tr.querySelectorAll("span.isEditing-hidden");
+    spans[0].textContent = firstname;
+    spans[1].textContent = lastname;
+    spans[2].textContent = email;
+
+    tr.classList.remove("isEditing");
+  }
+
+  async deleteContact(tr, contact) {
+    await DB.delete(contact.id);
+    this.contacts = this.contacts.filter(c => c.id !== contact.id);
+    tr.remove();
+    this.renderContactsCount();
   }
 }
