@@ -1,6 +1,6 @@
 import DB from "../../DB";
 import Contact from "../contact/Contact";
-import ContactsListTemplate from "./template.js";
+import ContactsListTemplate from "./template";
 
 export default class ContactsList {
   constructor(data) {
@@ -11,7 +11,7 @@ export default class ContactsList {
     // Injecter le HTML dans le div
     this.div.innerHTML = ContactsListTemplate(this);
 
-    // Sélecteurs des éléments après injection
+    // Sélecteurs des éléments après injectiona
     this.tbody = this.div.querySelector("table.contacts-table tbody");
     this.countSpan = this.div.querySelector("span.font-bold");
     this.inputFirstname = this.div.querySelector(".input-add-firstname");
@@ -29,7 +29,7 @@ export default class ContactsList {
   async loadContacts() {
     const contacts = await DB.find();
     this.contacts = contacts.map(c => new Contact(c));
-    this.tbody.innerHTML = ""; // vider le tableau avant d'ajouter
+    this.tbody.innerHTML = ""; // vider le tableau avant d'ajouter eviter duplication
     this.contacts.forEach(contact => this.addContactInDOM(contact));
     this.renderContactsCount();
   }
@@ -43,12 +43,12 @@ export default class ContactsList {
   }
 
   async addContact() {
-    const firstname = this.inputFirstname.value.trim();
-    const lastname = this.inputLastname.value.trim();
-    const email = this.inputEmail.value.trim();
+   //  Récupérer les valeurs AVANT de les utiliser
+  const firstname = this.inputFirstname.value;
+  const lastname = this.inputLastname.value;
+  const email = this.inputEmail.value;
 
-    if (!firstname || !lastname || !email) return;
-
+  //  Envoyer à la DB
     const newContactData = await DB.create({ firstname, lastname, email });
     const newContact = new Contact(newContactData);
 
@@ -56,9 +56,6 @@ export default class ContactsList {
     this.addContactInDOM(newContact);
     this.renderContactsCount();
 
-    this.inputFirstname.value = "";
-    this.inputLastname.value = "";
-    this.inputEmail.value = "";
   }
 
   addContactInDOM(contact) {
